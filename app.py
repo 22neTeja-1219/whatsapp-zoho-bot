@@ -12,7 +12,7 @@ APP_LINK = os.environ.get("APP_LINK")
 FORM_LINK = os.environ.get("FORM_LINK")
 
 def get_access_token():
-    r = requests.post("https://accounts.zoho.in/oauth/v2/token", data={
+    r = requests.post("https://accounts.zoho.com/oauth/v2/token", data={
         "refresh_token": ZOHO_REFRESH_TOKEN,
         "client_id": ZOHO_CLIENT_ID,
         "client_secret": ZOHO_CLIENT_SECRET,
@@ -39,7 +39,7 @@ def whatsapp():
 
     try:
         token = get_access_token()
-        url = f"https://creator.zoho.in/api/v2/{ZOHO_OWNER}/{APP_LINK}/form/{FORM_LINK}"
+        url = f"https://creator.zoho.com/api/v2/{ZOHO_OWNER}/{APP_LINK}/form/{FORM_LINK}"
         resp = requests.post(url, json={"data": data}, headers={
             "Authorization": f"Zoho-oauthtoken {token}"
         })
