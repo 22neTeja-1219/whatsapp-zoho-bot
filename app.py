@@ -16,7 +16,7 @@ META_TOKEN = os.environ.get("META_TOKEN")
 PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
 VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "myverifytoken123")
 
-META_API = f"https://graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages" if PHONE_NUMBER_ID else ""
+META_API = f"https://graph.facebook.com/v26.0/{PHONE_NUMBER_ID}/messages" if PHONE_NUMBER_ID else ""
 
 MENU = {
     "Food": {
