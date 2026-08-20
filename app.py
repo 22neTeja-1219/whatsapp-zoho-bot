@@ -1,6 +1,7 @@
 from flask import Flask, request
 import requests
 import os
+import json
 
 app = Flask(__name__)
 
@@ -11,7 +12,12 @@ ZOHO_OWNER = os.environ.get("ZOHO_OWNER")
 APP_LINK = os.environ.get("APP_LINK")
 FORM_LINK = os.environ.get("FORM_LINK")
 
-# ========== MENU (English names + prices) ==========
+META_TOKEN = os.environ.get("META_TOKEN")
+PHONE_NUMBER_ID = os.environ.get("PHONE_NUMBER_ID")
+VERIFY_TOKEN = os.environ.get("VERIFY_TOKEN", "myverifytoken123")
+
+META_API = f"https://graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages" if PHONE_NUMBER_ID else ""
+
 MENU = {
     "Food": {
         "Biryani": {
@@ -21,7 +27,6 @@ MENU = {
             "Paneer Biryani": 280,
             "Egg Biryani": 200,
             "Prawn Biryani": 350,
-            "Hyderabadi Dum Biryani": 320,
         },
         "Pizza": {
             "Pizza Margherita": 300,
@@ -29,19 +34,14 @@ MENU = {
             "Pepperoni Pizza": 400,
             "BBQ Chicken Pizza": 420,
             "Mushroom Pizza": 330,
-            "Four Cheese Pizza": 380,
         },
         "Burger": {
             "Cheese Burger": 200,
-            "Bacon Burger": 250,
             "Chicken Burger": 220,
             "Veg Burger": 150,
             "Double Patty Burger": 300,
-            "Fish Burger": 270,
         },
         "Sandwich": {
-            "Chicken Curry Sandwich": 180,
-            "Mozzarella Sandwich": 160,
             "Club Sandwich": 200,
             "Grilled Veg Sandwich": 140,
             "Paneer Tikka Sandwich": 170,
@@ -52,39 +52,25 @@ MENU = {
             "Penne Arrabiata": 250,
             "Spaghetti Bolognese": 300,
             "Alfredo Pasta": 270,
-            "Mac and Cheese": 240,
-        },
-        "Rice & Noodles": {
-            "Fried Rice Veg": 150,
-            "Fried Rice Chicken": 200,
-            "Schezwan Noodles": 180,
-            "Hakka Noodles Veg": 160,
-            "Hakka Noodles Chicken": 200,
         },
         "Starters": {
             "Chicken 65": 250,
             "Paneer Tikka": 220,
             "Gobi Manchurian": 180,
-            "Spring Rolls Veg": 150,
-            "Chicken Wings": 280,
-            "Fish Fingers": 260,
             "French Fries": 120,
-            "Onion Rings": 130,
+            "Chicken Wings": 280,
         },
         "Soup": {
             "Tomato Soup": 100,
             "Sweet Corn Soup": 120,
             "Hot and Sour Soup": 130,
             "Mushroom Soup": 140,
-            "Chicken Clear Soup": 150,
         },
         "Dessert": {
             "Gulab Jamun": 80,
             "Ice Cream Vanilla": 100,
-            "Ice Cream Chocolate": 120,
             "Brownie with Ice Cream": 180,
             "Rasmalai": 100,
-            "Fruit Salad": 90,
         },
     },
     "Drinks": {
@@ -93,142 +79,57 @@ MENU = {
             "Cappuccino": 150,
             "Latte": 160,
             "Cold Coffee": 140,
-            "Black Coffee": 100,
         },
         "Tea": {
             "Ice Tea": 80,
             "Masala Chai": 50,
             "Green Tea": 70,
-            "Lemon Tea": 60,
         },
         "Juice": {
             "Mango Juice": 100,
             "Orange Juice": 90,
             "Watermelon Juice": 80,
-            "Pineapple Juice": 90,
-            "Mixed Fruit Juice": 110,
         },
         "Shake": {
             "Milkshake Banana": 150,
             "Milkshake Chocolate": 170,
-            "Milkshake Strawberry": 160,
             "Milkshake Oreo": 180,
         },
         "Soft Drinks": {
             "Coca-Cola": 60,
             "Pepsi": 60,
             "Sprite": 60,
-            "Fanta": 60,
             "Water": 30,
-            "Soda": 40,
         },
         "Lassi": {
             "Sweet Lassi": 80,
             "Mango Lassi": 100,
-            "Salt Lassi": 70,
             "Rose Lassi": 90,
         },
     },
     "Combo": {
         "Lunch Combos": {
-            "Sushi Lunch Combo": 500,
             "Burger Menu Combo": 400,
-            "Pizza Combo (2 Pizza + Drink)": 650,
-            "Biryani Combo (Biryani + Raita + Drink)": 350,
-            "Pasta Combo (Pasta + Soup + Drink)": 400,
+            "Pizza Combo": 650,
+            "Biryani Combo": 350,
+            "Pasta Combo": 400,
         },
         "Family Combos": {
-            "Family Meal (Serves 4)": 800,
-            "Party Pack (Serves 6)": 1200,
-            "Weekend Special (Serves 2)": 500,
+            "Family Meal Serves 4": 800,
+            "Party Pack Serves 6": 1200,
+            "Weekend Special Serves 2": 500,
         },
         "Value Meals": {
-            "Budget Meal (Burger + Fries + Drink)": 250,
-            "Student Meal (Sandwich + Juice)": 200,
-            "Kids Meal (Nuggets + Fries + Juice)": 180,
+            "Budget Meal": 250,
+            "Student Meal": 200,
+            "Kids Meal": 180,
         },
     },
 }
-
-# ========== TRANSLATIONS ==========
-LANG = {
-    "en": {
-        "welcome": "🍽️ *Welcome to Restaurant Register!*\n\nPlease select your language:\n\n1. English\n2. తెలుగు (Telugu)\n3. हिन्दी (Hindi)\n4. தமிழ் (Tamil)\n5. ಕನ್ನಡ (Kannada)\n\nReply with the number",
-        "select_category": "📋 *Menu*\n\nSelect a category:\n\n{list}\n\nReply with the number",
-        "select_item": "🍴 *{category}*\n\nSelect an item:\n\n{list}\n\nReply with the number",
-        "select_variety": "📝 *{item}*\n\n{list}\n\nReply with the number",
-        "selected_item": "✅ *{name}* - ₹{price}\n\nAdd a note (e.g. Extra Spicy, No Onion)\nOr reply *0* for no note",
-        "added_to_cart": "🛒 *Added to cart!*\n\n*Your Cart:*\n{cart}\n\n1️⃣ Add more items\n2️⃣ Confirm Order ✅\n3️⃣ Clear cart 🗑️\n\nReply with the number",
-        "final_order": "📋 *Your Final Order:*\n\n{cart}\n\nReply *yes* to confirm\nReply *no* to cancel",
-        "order_confirmed": "✅ *Order Confirmed!*\n\n{summary}\n\n🙏 Thank you for your order!\nSend *hi* to order again",
-        "order_cancelled": "❌ Order cancelled.\nSend *hi* to start again.",
-        "invalid": "⚠️ Invalid choice. Please try again.",
-        "error": "❌ Error: {error}\nSend *hi* to try again.",
-        "category_names": {"Food": "🍕 Food", "Drinks": "🥤 Drinks", "Combo": "🎁 Combo"},
-    },
-    "te": {
-        "welcome": "🍽️ *రెస్టారెంట్ రిజిస్టర్‌కు స్వాగతం!*\n\nదయచేసి మీ భాషను ఎంచుకోండి:\n\n1. English\n2. తెలుగు (Telugu)\n3. हिन्दी (Hindi)\n4. தமிழ் (Tamil)\n5. ಕನ್ನಡ (Kannada)\n\nనంబర్‌తో రిప్లై చేయండి",
-        "select_category": "📋 *మెనూ*\n\nవర్గాన్ని ఎంచుకోండి:\n\n{list}\n\nనంబర్‌తో రిప్లై చేయండి",
-        "select_item": "🍴 *{category}*\n\nఐటమ్‌ను ఎంచుకోండి:\n\n{list}\n\nనంబర్‌తో రిప్లై చేయండి",
-        "select_variety": "📝 *{item}*\n\n{list}\n\nనంబర్‌తో రిప్లై చేయండి",
-        "selected_item": "✅ *{name}* - ₹{price}\n\nనోట్ జోడించండి (ఉదా: ఎక్స్ట్రా స్పైసీ)\nనోట్ వద్దు అంటే *0* రిప్లై చేయండి",
-        "added_to_cart": "🛒 *కార్ట్‌కు జోడించబడింది!*\n\n*మీ కార్ట్:*\n{cart}\n\n1️⃣ మరిన్ని ఐటమ్‌లు జోడించు\n2️⃣ ఆర్డర్ కన్ఫర్మ్ చేయి ✅\n3️⃣ కార్ట్ క్లియర్ చేయి 🗑️\n\nనంబర్‌తో రిప్లై చేయండి",
-        "final_order": "📋 *మీ ఫైనల్ ఆర్డర్:*\n\n{cart}\n\nకన్ఫర్మ్ చేయడానికి *yes* రిప్లై చేయండి\nక్యాన్సిల్ చేయడానికి *no* రిప్లై చేయండి",
-        "order_confirmed": "✅ *ఆర్డర్ కన్ఫర్మ్ అయింది!*\n\n{summary}\n\n🙏 మీ ఆర్డర్‌కు ధన్యవాదాలు!\nమళ్ళీ ఆర్డర్ చేయడానికి *hi* పంపండి",
-        "order_cancelled": "❌ ఆర్డర్ క్యాన్సిల్ చేయబడింది.\nమళ్ళీ ప్రారంభించడానికి *hi* పంపండి.",
-        "invalid": "⚠️ చెల్లని ఎంపిక. దయచేసి మళ్ళీ ప్రయత్నించండి.",
-        "error": "❌ ఎర్రర్: {error}\nమళ్ళీ ప్రయత్నించడానికి *hi* పంపండి.",
-        "category_names": {"Food": "🍕 ఆహారం", "Drinks": "🥤 డ్రింక్స్", "Combo": "🎁 కాంబో"},
-    },
-    "hi": {
-        "welcome": "🍽️ *रेस्टोरेंट रजिस्टर में स्वागत है!*\n\nकृपया अपनी भाषा चुनें:\n\n1. English\n2. తెలుగు (Telugu)\n3. हिन्दी (Hindi)\n4. தமிழ் (Tamil)\n5. ಕನ್ನಡ (Kannada)\n\nनंबर से रिप्लाई करें",
-        "select_category": "📋 *मेनू*\n\nश्रेणी चुनें:\n\n{list}\n\nनंबर से रिप्लाई करें",
-        "select_item": "🍴 *{category}*\n\nआइटम चुनें:\n\n{list}\n\nनंबर से रिप्लाई करें",
-        "select_variety": "📝 *{item}*\n\n{list}\n\nनंबर से रिप्लाई करें",
-        "selected_item": "✅ *{name}* - ₹{price}\n\nनोट जोड़ें (जैसे एक्स्ट्रा स्पाइसी)\nनोट नहीं चाहिए तो *0* रिप्लाई करें",
-        "added_to_cart": "🛒 *कार्ट में जोड़ा गया!*\n\n*आपका कार्ट:*\n{cart}\n\n1️⃣ और आइटम जोड़ें\n2️⃣ ऑर्डर कन्फर्म करें ✅\n3️⃣ कार्ट खाली करें 🗑️\n\nनंबर से रिप्लाई करें",
-        "final_order": "📋 *आपका फाइनल ऑर्डर:*\n\n{cart}\n\nकन्फर्म करने के लिए *yes* रिप्लाई करें\nकैंसल करने के लिए *no* रिप्लाई करें",
-        "order_confirmed": "✅ *ऑर्डर कन्फर्म हो गया!*\n\n{summary}\n\n🙏 आपके ऑर्डर के लिए धन्यवाद!\nफिर से ऑर्डर करने के लिए *hi* भेजें",
-        "order_cancelled": "❌ ऑर्डर कैंसल कर दिया गया.\nफिर से शुरू करने के लिए *hi* भेजें.",
-        "invalid": "⚠️ गलत चॉइस. कृपया फिर से कोशिश करें.",
-        "error": "❌ एरर: {error}\nफिर से कोशिश के लिए *hi* भेजें.",
-        "category_names": {"Food": "🍕 खाना", "Drinks": "🥤 ड्रिंक्स", "Combo": "🎁 कॉम्बो"},
-    },
-    "ta": {
-        "welcome": "🍽️ *உணவகத்திற்கு வரவேற்கிறோம்!*\n\nஉங்கள் மொழியைத் தேர்ந்தெடுக்கவும்:\n\n1. English\n2. తెలుగు (Telugu)\n3. हिन्दी (Hindi)\n4. தமிழ் (Tamil)\n5. ಕನ್ನಡ (Kannada)\n\nஎண்ணை பதிலளிக்கவும்",
-        "select_category": "📋 *மெனு*\n\nவகையைத் தேர்ந்தெடுக்கவும்:\n\n{list}\n\nஎண்ணை பதிலளிக்கவும்",
-        "select_item": "🍴 *{category}*\n\nபொருளைத் தேர்ந்தெடுக்கவும்:\n\n{list}\n\nஎண்ணை பதிலளிக்கவும்",
-        "select_variety": "📝 *{item}*\n\n{list}\n\nஎண்ணை பதிலளிக்கவும்",
-        "selected_item": "✅ *{name}* - ₹{price}\n\nகுறிப்பு சேர்க்கவும் (எ.கா. கூடுதல் காரம்)\nகுறிப்பு வேண்டாம் என்றால் *0* பதிலளிக்கவும்",
-        "added_to_cart": "🛒 *கார்ட்டில் சேர்க்கப்பட்டது!*\n\n*உங்கள் கார்ட்:*\n{cart}\n\n1️⃣ மேலும் பொருட்கள் சேர்\n2️⃣ ஆர்டரை உறுதிப்படுத்து ✅\n3️⃣ கார்ட்டை அழி 🗑️\n\nஎண்ணை பதிலளிக்கவும்",
-        "final_order": "📋 *உங்கள் இறுதி ஆர்டர்:*\n\n{cart}\n\nஉறுதிப்படுத்த *yes* பதிலளிக்கவும்\nரத்து செய்ய *no* பதிலளிக்கவும்",
-        "order_confirmed": "✅ *ஆர்டர் உறுதிப்படுத்தப்பட்டது!*\n\n{summary}\n\n🙏 உங்கள் ஆர்டருக்கு நன்றி!\nமீண்டும் ஆர்டர் செய்ய *hi* அனுப்பவும்",
-        "order_cancelled": "❌ ஆர்டர் ரத்து செய்யப்பட்டது.\nமீண்டும் தொடங்க *hi* அனுப்பவும்.",
-        "invalid": "⚠️ தவறான தேர்வு. மீண்டும் முயற்சிக்கவும்.",
-        "error": "❌ பிழை: {error}\nமீண்டும் முயற்சிக்க *hi* அனுப்பவும்.",
-        "category_names": {"Food": "🍕 உணவு", "Drinks": "🥤 பானங்கள்", "Combo": "🎁 காம்போ"},
-    },
-    "kn": {
-        "welcome": "🍽️ *ರೆಸ್ಟೋರೆಂಟ್ ರಿಜಿಸ್ಟರ್‌ಗೆ ಸ್ವಾಗತ!*\n\nದಯವಿಟ್ಟು ನಿಮ್ಮ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ:\n\n1. English\n2. తెలుగు (Telugu)\n3. हिन्दी (Hindi)\n4. தமிழ் (Tamil)\n5. ಕನ್ನಡ (Kannada)\n\nಸಂಖ್ಯೆಯಿಂದ ರಿಪ್ಲೈ ಮಾಡಿ",
-        "select_category": "📋 *ಮೆನು*\n\nವರ್ಗವನ್ನು ಆಯ್ಕೆಮಾಡಿ:\n\n{list}\n\nಸಂಖ್ಯೆಯಿಂದ ರಿಪ್ಲೈ ಮಾಡಿ",
-        "select_item": "🍴 *{category}*\n\nಐಟಂ ಆಯ್ಕೆಮಾಡಿ:\n\n{list}\n\nಸಂಖ್ಯೆಯಿಂದ ರಿಪ್ಲೈ ಮಾಡಿ",
-        "select_variety": "📝 *{item}*\n\n{list}\n\nಸಂಖ್ಯೆಯಿಂದ ರಿಪ್ಲೈ ಮಾಡಿ",
-        "selected_item": "✅ *{name}* - ₹{price}\n\nನೋಟ್ ಸೇರಿಸಿ (ಉದಾ: ಎಕ್ಸ್ಟ್ರಾ ಸ್ಪೈಸಿ)\nನೋಟ್ ಬೇಡ ಎಂದರೆ *0* ರಿಪ್ಲೈ ಮಾಡಿ",
-        "added_to_cart": "🛒 *ಕಾರ್ಟ್‌ಗೆ ಸೇರಿಸಲಾಗಿದೆ!*\n\n*ನಿಮ್ಮ ಕಾರ್ಟ್:*\n{cart}\n\n1️⃣ ಇನ್ನಷ್ಟು ಐಟಂ ಸೇರಿಸಿ\n2️⃣ ಆರ್ಡರ್ ಕನ್ಫರ್ಮ್ ✅\n3️⃣ ಕಾರ್ಟ್ ಖಾಲಿ ಮಾಡಿ 🗑️\n\nಸಂಖ್ಯೆಯಿಂದ ರಿಪ್ಲೈ ಮಾಡಿ",
-        "final_order": "📋 *ನಿಮ್ಮ ಅಂತಿಮ ಆರ್ಡರ್:*\n\n{cart}\n\nಕನ್ಫರ್ಮ್ ಮಾಡಲು *yes* ರಿಪ್ಲೈ ಮಾಡಿ\nರದ್ದು ಮಾಡಲು *no* ರಿಪ್ಲೈ ಮಾಡಿ",
-        "order_confirmed": "✅ *ಆರ್ಡರ್ ಕನ್ಫರ್ಮ್ ಆಗಿದೆ!*\n\n{summary}\n\n🙏 ನಿಮ್ಮ ಆರ್ಡರ್‌ಗೆ ಧನ್ಯವಾದಗಳು!\nಮತ್ತೆ ಆರ್ಡರ್ ಮಾಡಲು *hi* ಕಳುಹಿಸಿ",
-        "order_cancelled": "❌ ಆರ್ಡರ್ ರದ್ದಾಗಿದೆ.\nಮತ್ತೆ ಪ್ರಾರಂಭಿಸಲು *hi* ಕಳುಹಿಸಿ.",
-        "invalid": "⚠️ ತಪ್ಪಾದ ಆಯ್ಕೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
-        "error": "❌ ದೋಷ: {error}\nಮತ್ತೆ ಪ್ರಯತ್ನಿಸಲು *hi* ಕಳುಹಿಸಿ.",
-        "category_names": {"Food": "🍕 ಆಹಾರ", "Drinks": "🥤 ಪಾನೀಯಗಳು", "Combo": "🎁 ಕಾಂಬೋ"},
-    },
-}
-
-LANG_CODES = ["en", "te", "hi", "ta", "kn"]
 
 user_sessions = {}
 
-def get_access_token():
+def get_zoho_token():
     r = requests.post("https://accounts.zoho.com/oauth/v2/token", data={
         "refresh_token": ZOHO_REFRESH_TOKEN,
         "client_id": ZOHO_CLIENT_ID,
@@ -237,121 +138,189 @@ def get_access_token():
     })
     return r.json().get("access_token")
 
-def build_numbered_list(items):
-    return "\n".join([f"{i+1}. {item}" for i, item in enumerate(items)])
+def send_text(to, text):
+    requests.post(META_API, headers={
+        "Authorization": f"Bearer {META_TOKEN}",
+        "Content-Type": "application/json"
+    }, json={
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": text}
+    })
 
-def t(session, key):
-    lang = session.get("lang", "en")
-    return LANG[lang][key]
+def send_buttons(to, body_text, buttons):
+    btn_list = []
+    for btn in buttons[:3]:
+        btn_list.append({
+            "type": "reply",
+            "reply": {"id": btn["id"], "title": btn["title"][:20]}
+        })
+    requests.post(META_API, headers={
+        "Authorization": f"Bearer {META_TOKEN}",
+        "Content-Type": "application/json"
+    }, json={
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {"text": body_text},
+            "action": {"buttons": btn_list}
+        }
+    })
+
+def send_list(to, body_text, button_text, sections):
+    requests.post(META_API, headers={
+        "Authorization": f"Bearer {META_TOKEN}",
+        "Content-Type": "application/json"
+    }, json={
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {"text": body_text},
+            "action": {
+                "button": button_text[:20],
+                "sections": sections
+            }
+        }
+    })
 
 def format_cart(cart):
     lines = []
     total = 0
     for i, item in enumerate(cart):
-        note_text = f" ({item['note']})" if item.get('note') else ""
-        lines.append(f"{i+1}. {item['name']}{note_text} - ₹{item['price']}")
+        note = f" ({item['note']})" if item.get('note') else ""
+        lines.append(f"{i+1}. {item['name']}{note} - Rs.{item['price']}")
         total += item['price']
-    lines.append(f"\n💰 *Total: ₹{total}*")
+    lines.append(f"\nTotal: Rs.{total}")
     return "\n".join(lines), total
 
 @app.route("/", methods=["GET"])
 def home():
     return "WhatsApp-Zoho Bot is running!", 200
 
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp():
-    msg = request.form.get("Body", "").strip()
-    sender = request.form.get("From", "")
+@app.route("/webhook", methods=["GET"])
+def verify():
+    mode = request.args.get("hub.mode")
+    token = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        return challenge, 200
+    return "Forbidden", 403
 
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        entry = data["entry"][0]
+        changes = entry["changes"][0]
+        value = changes["value"]
+        if "messages" not in value:
+            return "OK", 200
+        message = value["messages"][0]
+        sender = message["from"]
+        if message["type"] == "text":
+            msg = message["text"]["body"].strip()
+        elif message["type"] == "interactive":
+            interactive = message["interactive"]
+            if interactive["type"] == "button_reply":
+                msg = interactive["button_reply"]["id"]
+            elif interactive["type"] == "list_reply":
+                msg = interactive["list_reply"]["id"]
+            else:
+                msg = ""
+        else:
+            msg = ""
+        handle_message(sender, msg)
+    except Exception as e:
+        print(f"Error: {e}")
+    return "OK", 200
+
+def handle_message(sender, msg):
     if sender not in user_sessions:
-        user_sessions[sender] = {"step": "start", "cart": [], "lang": "en"}
-
+        user_sessions[sender] = {"step": "start", "cart": []}
     session = user_sessions[sender]
     step = session["step"]
 
-    # Reset / Start
-    if msg.lower() in ["hi", "hello", "hey", "start", "menu", "reset", "0"]:
-        user_sessions[sender] = {"step": "choose_lang", "cart": [], "lang": "en"}
-        return _reply(LANG["en"]["welcome"])
-
-    # Step 0: Choose Language
-    if step == "choose_lang":
-        try:
-            choice = int(msg) - 1
-            if 0 <= choice < len(LANG_CODES):
-                session["lang"] = LANG_CODES[choice]
-                session["step"] = "choose_category"
-                categories = list(MENU.keys())
-                cat_names = t(session, "category_names")
-                display_cats = [cat_names.get(c, c) for c in categories]
-                return _reply(t(session, "select_category").format(list=build_numbered_list(display_cats)))
-            else:
-                return _reply(t(session, "invalid"))
-        except ValueError:
-            return _reply(t(session, "invalid"))
-
-    # Step 1: Choose Category
-    if step == "choose_category":
+    if msg.lower() in ["hi", "hello", "hey", "start", "menu", "reset"]:
+        user_sessions[sender] = {"step": "choose_category", "cart": []}
         categories = list(MENU.keys())
-        try:
-            choice = int(msg) - 1
-            if 0 <= choice < len(categories):
-                session["category"] = categories[choice]
-                session["step"] = "choose_item"
-                items = list(MENU[session["category"]].keys())
-                return _reply(t(session, "select_item").format(
-                    category=t(session, "category_names").get(session["category"], session["category"]),
-                    list=build_numbered_list(items)
-                ))
-            else:
-                return _reply(t(session, "invalid"))
-        except ValueError:
-            return _reply(t(session, "invalid"))
+        rows = []
+        emojis = {"Food": "🍕", "Drinks": "🥤", "Combo": "🎁"}
+        for cat in categories:
+            rows.append({
+                "id": f"cat_{cat}",
+                "title": f"{emojis.get(cat, '')} {cat}",
+                "description": f"Browse {cat} items"
+            })
+        send_list(sender, "🍽️ Welcome to Restaurant Register!\n\nPlease select a category from the menu below:", "View Menu", [{"title": "Categories", "rows": rows}])
+        return
 
-    # Step 2: Choose Item
-    if step == "choose_item":
+    if step == "choose_category" and msg.startswith("cat_"):
+        category = msg.replace("cat_", "")
+        if category in MENU:
+            session["category"] = category
+            session["step"] = "choose_item"
+            items = list(MENU[category].keys())
+            rows = []
+            for item in items:
+                count = len(MENU[category][item])
+                rows.append({
+                    "id": f"item_{item}",
+                    "title": item[:24],
+                    "description": f"{count} varieties"
+                })
+            send_list(sender, f"🍴 {category}\n\nSelect an item:", "View Items", [{"title": category, "rows": rows}])
+        return
+
+    if step == "choose_item" and msg.startswith("item_"):
+        item_name = msg.replace("item_", "")
         category = session["category"]
-        items = list(MENU[category].keys())
-        try:
-            choice = int(msg) - 1
-            if 0 <= choice < len(items):
-                selected_item = items[choice]
-                session["item"] = selected_item
-                varieties = MENU[category][selected_item]
-                session["step"] = "choose_variety"
-                variety_list = [f"{name} - ₹{price}" for name, price in varieties.items()]
-                return _reply(t(session, "select_variety").format(
-                    item=selected_item,
-                    list=build_numbered_list(variety_list)
-                ))
-            else:
-                return _reply(t(session, "invalid"))
-        except ValueError:
-            return _reply(t(session, "invalid"))
+        if item_name in MENU[category]:
+            session["item"] = item_name
+            session["step"] = "choose_variety"
+            varieties = MENU[category][item_name]
+            rows = []
+            for name, price in varieties.items():
+                rows.append({
+                    "id": f"var_{name}",
+                    "title": name[:24],
+                    "description": f"Rs.{price}"
+                })
+            send_list(sender, f"📝 {item_name}\n\nSelect your choice:", "View Options", [{"title": item_name, "rows": rows}])
+        return
 
-    # Step 3: Choose Variety
-    if step == "choose_variety":
+    if step == "choose_variety" and msg.startswith("var_"):
+        variety_name = msg.replace("var_", "")
         category = session["category"]
         item = session["item"]
         varieties = MENU[category][item]
-        variety_names = list(varieties.keys())
-        try:
-            choice = int(msg) - 1
-            if 0 <= choice < len(variety_names):
-                selected = variety_names[choice]
-                price = varieties[selected]
-                session["variety"] = selected
-                session["price"] = price
-                session["step"] = "add_note"
-                return _reply(t(session, "selected_item").format(name=selected, price=price))
-            else:
-                return _reply(t(session, "invalid"))
-        except ValueError:
-            return _reply(t(session, "invalid"))
+        if variety_name in varieties:
+            price = varieties[variety_name]
+            session["variety"] = variety_name
+            session["price"] = price
+            session["step"] = "add_note"
+            send_buttons(sender, f"✅ {variety_name}\n💰 Price: Rs.{price}\n\nAdd a note?", [
+                {"id": "note_skip", "title": "No Note"},
+                {"id": "note_spicy", "title": "Extra Spicy"},
+                {"id": "note_custom", "title": "Type My Note"},
+            ])
+        return
 
-    # Step 4: Add Note
     if step == "add_note":
-        note = "" if msg == "0" else msg
+        if msg == "note_skip":
+            note = ""
+        elif msg == "note_spicy":
+            note = "Extra Spicy"
+        elif msg == "note_custom":
+            session["step"] = "type_note"
+            send_text(sender, "Type your note and send:")
+            return
+        else:
+            note = msg
         session["cart"].append({
             "name": session["variety"],
             "category": session["category"],
@@ -360,77 +329,88 @@ def whatsapp():
         })
         cart_text, total = format_cart(session["cart"])
         session["step"] = "after_add"
-        return _reply(t(session, "added_to_cart").format(cart=cart_text))
+        send_buttons(sender, f"🛒 Added to cart!\n\nYour Cart:\n{cart_text}\n\nWhat next?", [
+            {"id": "action_more", "title": "Add More"},
+            {"id": "action_confirm", "title": "Confirm Order"},
+            {"id": "action_clear", "title": "Clear Cart"},
+        ])
+        return
 
-    # Step 5: After Add
+    if step == "type_note":
+        note = msg
+        session["cart"].append({
+            "name": session["variety"],
+            "category": session["category"],
+            "price": session["price"],
+            "note": note,
+        })
+        cart_text, total = format_cart(session["cart"])
+        session["step"] = "after_add"
+        send_buttons(sender, f"🛒 Added to cart!\n\nYour Cart:\n{cart_text}\n\nWhat next?", [
+            {"id": "action_more", "title": "Add More"},
+            {"id": "action_confirm", "title": "Confirm Order"},
+            {"id": "action_clear", "title": "Clear Cart"},
+        ])
+        return
+
     if step == "after_add":
-        if msg == "1":
+        if msg == "action_more":
             session["step"] = "choose_category"
             categories = list(MENU.keys())
-            cat_names = t(session, "category_names")
-            display_cats = [cat_names.get(c, c) for c in categories]
-            return _reply(t(session, "select_category").format(list=build_numbered_list(display_cats)))
-        elif msg == "2":
+            rows = []
+            emojis = {"Food": "🍕", "Drinks": "🥤", "Combo": "🎁"}
+            for cat in categories:
+                rows.append({"id": f"cat_{cat}", "title": f"{emojis.get(cat, '')} {cat}", "description": f"Browse {cat} items"})
+            send_list(sender, "Select a category:", "View Menu", [{"title": "Categories", "rows": rows}])
+        elif msg == "action_confirm":
             session["step"] = "confirm_order"
             cart_text, total = format_cart(session["cart"])
-            return _reply(t(session, "final_order").format(cart=cart_text))
-        elif msg == "3":
+            send_buttons(sender, f"📋 Your Final Order:\n\n{cart_text}\n\nConfirm this order?", [
+                {"id": "order_yes", "title": "Confirm"},
+                {"id": "order_no", "title": "Cancel"},
+            ])
+        elif msg == "action_clear":
             session["cart"] = []
             session["step"] = "choose_category"
             categories = list(MENU.keys())
-            cat_names = t(session, "category_names")
-            display_cats = [cat_names.get(c, c) for c in categories]
-            return _reply(t(session, "select_category").format(list=build_numbered_list(display_cats)))
-        else:
-            return _reply(t(session, "invalid"))
+            rows = []
+            emojis = {"Food": "🍕", "Drinks": "🥤", "Combo": "🎁"}
+            for cat in categories:
+                rows.append({"id": f"cat_{cat}", "title": f"{emojis.get(cat, '')} {cat}", "description": f"Browse {cat} items"})
+            send_list(sender, "Cart cleared!\n\nSelect a category:", "View Menu", [{"title": "Categories", "rows": rows}])
+        return
 
-    # Step 6: Confirm Order
     if step == "confirm_order":
-        if msg.lower() == "yes":
+        if msg == "order_yes":
             cart = session["cart"]
             try:
-                token = get_access_token()
+                token = get_zoho_token()
                 url = f"https://creator.zoho.com/api/v2/{ZOHO_OWNER}/{APP_LINK}/form/{FORM_LINK}"
                 success = 0
                 for item in cart:
-                    data = {
-                        "Product_Name": item["name"],
-                        "Category": item["category"],
-                        "Currency": str(item["price"]),
-                    }
+                    data = {"Product_Name": item["name"], "Category": item["category"], "Currency": str(item["price"])}
                     if item.get("note"):
                         data["Modifier_Note"] = item["note"]
-                    resp = requests.post(url, json={"data": data}, headers={
-                        "Authorization": f"Zoho-oauthtoken {token}"
-                    })
+                    resp = requests.post(url, json={"data": data}, headers={"Authorization": f"Zoho-oauthtoken {token}"})
                     if resp.status_code == 200:
                         success += 1
-
-                order_lines = [f"  • {item['name']} - ₹{item['price']}" for item in cart]
+                order_lines = [f"  {item['name']} - Rs.{item['price']}" for item in cart]
                 _, total = format_cart(cart)
-                summary = "\n".join(order_lines) + f"\n\n💰 *Total: ₹{total}*\n📦 Items added: {success}/{len(cart)}"
-
-                user_sessions[sender] = {"step": "start", "cart": [], "lang": session.get("lang", "en")}
-                return _reply(t(session, "order_confirmed").format(summary=summary))
+                user_sessions[sender] = {"step": "start", "cart": []}
+                send_text(sender, f"✅ Order Confirmed!\n\n" + "\n".join(order_lines) + f"\n\nTotal: Rs.{total}\nItems added: {success}/{len(cart)}\n\nThank you! Send hi to order again")
             except Exception as e:
-                user_sessions[sender] = {"step": "start", "cart": [], "lang": session.get("lang", "en")}
-                return _reply(t(session, "error").format(error=str(e)[:100]))
+                user_sessions[sender] = {"step": "start", "cart": []}
+                send_text(sender, f"Error: {str(e)[:100]}\nSend hi to try again")
+        elif msg == "order_no":
+            user_sessions[sender] = {"step": "start", "cart": []}
+            send_text(sender, "Order cancelled.\nSend hi to start again.")
+        return
 
-        elif msg.lower() == "no":
-            user_sessions[sender] = {"step": "start", "cart": [], "lang": session.get("lang", "en")}
-            return _reply(t(session, "order_cancelled"))
-        else:
-            return _reply(t(session, "invalid"))
+    send_text(sender, "Send hi to start ordering! 🍽️")
 
-    return _reply("Send *hi* to start ordering! 🍽️")
-
-def _reply(message):
-    return (
-        f'<?xml version="1.0" encoding="UTF-8"?>'
-        f'<Response><Message>{message}</Message></Response>',
-        200,
-        {"Content-Type": "text/xml"}
-    )
+@app.route("/whatsapp", methods=["POST"])
+def twilio_whatsapp():
+    return "Use Meta WhatsApp API now.", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
